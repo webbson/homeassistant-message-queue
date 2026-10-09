@@ -27,6 +27,12 @@ push_message:
       description: ISO datetime when the message expires (e.g., 2024-03-03T18:30:00).
       selector:
         text:
+    message_id:
+      name: Message ID
+      description: Unique identifier for this message.  Any previous messages with this ID will be replaced in the queue.
+      required: false
+      selector:
+        text:
 
 push_message_to_multiple:
   name: Push message to multiple queues
@@ -57,6 +63,12 @@ push_message_to_multiple:
       description: ISO datetime when the message expires (e.g., 2024-03-03T18:30:00).
       selector:
         text:
+    message_id:
+      name: Message ID
+      description: Unique identifier for this message.  Any previous messages with this ID will be replaced in the queue.
+      required: false
+      selector:
+        text:
 
 push_message_to_all:
   name: Push message to all queues
@@ -81,6 +93,12 @@ push_message_to_all:
       description: ISO datetime when the message expires (e.g., 2024-03-03T18:30:00).
       selector:
         text:
+    message_id:
+      name: Message ID
+      description: Unique identifier for this message.  Any previous messages with this ID will be replaced in the queue.
+      required: false
+      selector:
+        text:
 
 clear_queue:
   name: Clear queue
@@ -101,5 +119,22 @@ get_queue_status:
       name: Queue
       description: Name of the queue to inspect.
       required: true
+      selector:
+        text:
+
+remove_message:
+  name: Remove message from queue
+  description: Remove the message with a given ID from one queue (or all queues).
+  fields:
+    message_id:
+      name: Message ID
+      description: Unique ID for the message to remove_message
+      required: true
+      selector:
+        text:
+    queue:
+      name: Queue
+      description: Name of the queue to remove message from.  Leave blank to remove from all queues.
+      required: false
       selector:
         text:

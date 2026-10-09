@@ -69,17 +69,30 @@ class QueueManager:
         message: str,
         show_seconds: int | None = None,
         show_until: str | None = None,
+        message_id: str | None = None,
     ) -> None:
         """Push a message to a single queue."""
         if queue not in self.queues:
             _LOGGER.error("Queue '%s' does not exist", queue)
             return
 
+        # Find and remove existing message with this id, if any exist.
+        # Linear search is probably not great... but unless queue lengths are crazy
+        # this should be fine.
+        if message_id is not None:
+            for i in range(len(self.queues[queue])):
+                if self.queues[queue][i].get("message_id") == message_id:
+                    del self.queues[queue][i]
+                    _LOGGER.debug(
+                        "Removed previous message with message id '%s' from '%s'", message_id, queue
+                    )
+                    break
+
         expires_at = self._calculate_expiration(show_seconds, show_until)
         if expires_at is None:
-            return
+            return        
 
-        self.queues[queue].append({"text": message, "expires_at": expires_at})
+        self.queues[queue].append({"text": message, "expires_at": expires_at, "message_id": message_id,})
         _LOGGER.debug(
             "Pushed to '%s': '%s' (expires %s)", queue, message, expires_at.isoformat()
         )
@@ -92,6 +105,7 @@ class QueueManager:
         message: str,
         show_seconds: int | None = None,
         show_until: str | None = None,
+        message_id: str | None = None,
     ) -> None:
         """Push a message to multiple queues."""
         expires_at = self._calculate_expiration(show_seconds, show_until)
@@ -103,7 +117,18 @@ class QueueManager:
             if queue_name not in self.queues:
                 _LOGGER.error("Queue '%s' does not exist, skipping", queue_name)
                 continue
-            self.queues[queue_name].append({"text": message, "expires_at": expires_at})
+            # Find and remove existing message with this id, if any exist.
+            # Linear search is probably not great... but unless queue lengths are crazy
+            # this should be fine.
+            if message_id is not None:
+                for i in range(len(self.queues[queue])):
+                    if self.queues[queue][i].get("message_id") == message_id:
+                        del self.queues[queue][i]
+                        _LOGGER.debug(
+                            "Removed previous message with message id '%s' from '%s'", message_id, queue
+                        )
+                        break
+            self.queues[queue_name].append({"text": message, "expires_at": expires_at, "message_id": message_id,})
             async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue_name)
             pushed.append(queue_name)
 
@@ -116,6 +141,7 @@ class QueueManager:
         message: str,
         show_seconds: int | None = None,
         show_until: str | None = None,
+        message_id: str | None = None,
     ) -> None:
         """Push a message to all configured queues."""
         if not self.queues:
@@ -127,11 +153,60 @@ class QueueManager:
             return
 
         for queue_name, queue in self.queues.items():
-            queue.append({"text": message, "expires_at": expires_at})
+            # Find and remove existing message with this id, if any exist.
+            # Linear search is probably not great... but unless queue lengths are crazy
+            # this should be fine.
+            if message_id is not None:
+                for i in range(len(self.queues[queue])):
+                    if self.queues[queue][i].get("message_id") == message_id:
+                        del self.queues[queue][i]
+                        _LOGGER.debug(
+                            "Removed previous message with message id '%s' from '%s'", message_id, queue
+                        )
+                        break
+            queue.append({"text": message, "expires_at": expires_at, "message_id": message_id,})
             async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue_name)
 
         _LOGGER.debug("Pushed message to all %d queues", len(self.queues))
         await self._async_save_state()
+
+    async def async_remove_message(
+        self,        
+        message_id: str,
+        queue: str | None = None,
+    ) -> None:
+        """Remove a message by ID from a single queue or all queues."""
+        found = False
+        if queue is not None:
+            if queue not in self.queues:
+                _LOGGER.error("Queue '%s' does not exist", queue)
+                return
+            for i in range(len(self.queues[queue])):
+                if self.queues[queue][i].get("message_id") == message_id:
+                    del self.queues[queue][i]
+                    _LOGGER.debug(
+                        "Removed previous message with message id '%s' from '%s'", message_id, queue
+                    )
+                    found = True
+                    break
+        else:
+            for queue_name in self.queues.keys():
+                # Find and remove existing message with this id, if any exist.
+                # Linear search is probably not great... but unless queue lengths are crazy
+                # this should be fine.            
+                for i in range(len(self.queues[queue_name])):
+                    if self.queues[queue_name][i].get("message_id") == message_id:
+                        del self.queues[queue_name][i]
+                        _LOGGER.debug(
+                            "Removed previous message with message id '%s' from '%s'", message_id, queue
+                        )
+                        found = True
+                        break                            
+        if not found:
+            _LOGGER.debug(
+                "Could not find a message with message id '%s'", message_id
+            )
+        await self._async_save_state()       
 
     async def async_clear_queue(self, queue: str) -> None:
         """Clear all messages from a queue."""

@@ -30,6 +30,7 @@ PUSH_MESSAGE_SCHEMA = vol.Schema({
     vol.Required("message"): cv.string,
     vol.Optional("show_seconds"): vol.All(int, vol.Range(min=1)),
     vol.Optional("show_until"): cv.string,
+    vol.Optional("message_id"): cv.string,
 })
 
 PUSH_MESSAGE_MULTIPLE_SCHEMA = vol.Schema({
@@ -37,12 +38,19 @@ PUSH_MESSAGE_MULTIPLE_SCHEMA = vol.Schema({
     vol.Required("message"): cv.string,
     vol.Optional("show_seconds"): vol.All(int, vol.Range(min=1)),
     vol.Optional("show_until"): cv.string,
+    vol.Optional("message_id"): cv.string,
 })
 
 PUSH_MESSAGE_ALL_SCHEMA = vol.Schema({
     vol.Required("message"): cv.string,
     vol.Optional("show_seconds"): vol.All(int, vol.Range(min=1)),
     vol.Optional("show_until"): cv.string,
+    vol.Optional("message_id"): cv.string,
+})
+
+REMOVE_MESSAGE_SCHEMA = vol.Schema({
+    vol.Required("message_id"): cv.string,
+    vol.Optional("queue"): cv.string,
 })
 
 QUEUE_SCHEMA = vol.Schema({
@@ -148,6 +156,7 @@ def _register_services(hass: HomeAssistant) -> None:
             message=call.data["message"],
             show_seconds=call.data.get("show_seconds"),
             show_until=call.data.get("show_until"),
+            message_id=call.data.get("message_id"),
         )
 
     async def handle_push_message_to_multiple(call: ServiceCall) -> None:
@@ -160,6 +169,7 @@ def _register_services(hass: HomeAssistant) -> None:
             message=call.data["message"],
             show_seconds=call.data.get("show_seconds"),
             show_until=call.data.get("show_until"),
+            message_id=call.data.get("message_id"),
         )
 
     async def handle_push_message_to_all(call: ServiceCall) -> None:
@@ -171,6 +181,7 @@ def _register_services(hass: HomeAssistant) -> None:
             message=call.data["message"],
             show_seconds=call.data.get("show_seconds"),
             show_until=call.data.get("show_until"),
+            message_id=call.data.get("message_id"),
         )
 
     async def handle_clear_queue(call: ServiceCall) -> None:
@@ -189,6 +200,16 @@ def _register_services(hass: HomeAssistant) -> None:
         if status:
             hass.bus.async_fire("message_queue_status", status)
             _LOGGER.info("Queue status: %s", status)
+    
+    async def handle_remove_message(call: ServiceCall) -> none:
+        manager = _get_manager(hass)
+        if not manager:
+            _LOGGER.error("Message Queue not initialized")
+            return
+        await manager.async_remove_message(
+            message_id=call.data.get("message_id"),
+            queue=call.data.get("queue"),
+        )
 
     hass.services.async_register(
         DOMAIN, "push_message", handle_push_message, schema=PUSH_MESSAGE_SCHEMA
@@ -210,4 +231,8 @@ def _register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, "get_queue_status", handle_get_queue_status, schema=QUEUE_SCHEMA
+    )
+
+    hass.services.async_register(
+        DOMAIN, "remove_message", handle_remove_message, schema=REMOVE_MESSAGE_SCHEMA
     )
