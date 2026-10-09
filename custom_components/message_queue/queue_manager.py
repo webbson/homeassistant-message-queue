@@ -121,11 +121,11 @@ class QueueManager:
             # Linear search is probably not great... but unless queue lengths are crazy
             # this should be fine.
             if message_id is not None:
-                for i in range(len(self.queues[queue])):
-                    if self.queues[queue][i].get("message_id") == message_id:
-                        del self.queues[queue][i]
+                for i in range(len(self.queues[queue_name])):
+                    if self.queues[queue_name][i].get("message_id") == message_id:
+                        del self.queues[queue_name][i]
                         _LOGGER.debug(
-                            "Removed previous message with message id '%s' from '%s'", message_id, queue
+                            "Removed previous message with message id '%s' from '%s'", message_id, queue_name
                         )
                         break
             self.queues[queue_name].append({"text": message, "expires_at": expires_at, "message_id": message_id,})
@@ -157,11 +157,11 @@ class QueueManager:
             # Linear search is probably not great... but unless queue lengths are crazy
             # this should be fine.
             if message_id is not None:
-                for i in range(len(self.queues[queue])):
-                    if self.queues[queue][i].get("message_id") == message_id:
-                        del self.queues[queue][i]
+                for i in range(len(queue)):
+                    if queue[i].get("message_id") == message_id:
+                        del queue[i]
                         _LOGGER.debug(
-                            "Removed previous message with message id '%s' from '%s'", message_id, queue
+                            "Removed previous message with message id '%s' from '%s'", message_id, queue_name
                         )
                         break
             queue.append({"text": message, "expires_at": expires_at, "message_id": message_id,})
@@ -187,6 +187,7 @@ class QueueManager:
                     _LOGGER.debug(
                         "Removed previous message with message id '%s' from '%s'", message_id, queue
                     )
+                    async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue)
                     found = True
                     break
         else:
@@ -198,8 +199,9 @@ class QueueManager:
                     if self.queues[queue_name][i].get("message_id") == message_id:
                         del self.queues[queue_name][i]
                         _LOGGER.debug(
-                            "Removed previous message with message id '%s' from '%s'", message_id, queue
+                            "Removed previous message with message id '%s' from '%s'", message_id, queue_name
                         )
+                        async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue_name)
                         found = True
                         break                            
         if not found:
@@ -321,6 +323,7 @@ class QueueManager:
                 self.queues[queue_name].append({
                     "text": msg["text"],
                     "expires_at": datetime.fromisoformat(msg["expires_at"]),
+                    "message_id": msg.get("message_id"),
                 })
 
         _LOGGER.debug("Loaded persisted state for %d queues", len(data))
@@ -333,6 +336,7 @@ class QueueManager:
                 {
                     "text": msg["text"],
                     "expires_at": msg["expires_at"].isoformat(),
+                    "message_id": msg.get("message_id"),
                 }
                 for msg in queue
             ]

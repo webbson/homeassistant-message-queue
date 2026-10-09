@@ -201,7 +201,7 @@ def _register_services(hass: HomeAssistant) -> None:
             hass.bus.async_fire("message_queue_status", status)
             _LOGGER.info("Queue status: %s", status)
     
-    async def handle_remove_message(call: ServiceCall) -> none:
+    async def handle_remove_message(call: ServiceCall) -> None:
         manager = _get_manager(hass)
         if not manager:
             _LOGGER.error("Message Queue not initialized")
