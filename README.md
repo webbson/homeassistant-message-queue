@@ -9,6 +9,7 @@ A HACS custom integration for Home Assistant that displays rotating messages on 
 - **Sidebar panel** - Built-in "Messages" sidebar item for sending messages without YAML
 - **Multiple independent queues** - One sensor entity per queue
 - **Per-message expiration** - Control duration via `show_seconds` or absolute `show_until`
+- **Message IDs** - Give a message an optional `message_id` to replace or remove it later
 - **Batch messaging** - Push to a single queue, multiple queues, or all queues at once
 - **Persistence** - Messages survive Home Assistant restarts
 - **Strict queue validation** - Only configured queues accept messages (no accidental creation)
@@ -99,6 +100,27 @@ data:
   show_until: "2024-03-03T15:00:00"
 ```
 
+#### Replace or remove a message by ID
+
+Pushing a message with a `message_id` that is already in the queue replaces the old message.
+
+```yaml
+service: message_queue.push_message
+data:
+  queue: living_room_screen
+  message: "Washing machine: 10 minutes left"
+  message_id: washing_machine
+```
+
+Remove it again by ID. Leave out `queue` to remove it from all queues.
+
+```yaml
+service: message_queue.remove_message
+data:
+  message_id: washing_machine
+  queue: living_room_screen
+```
+
 #### Clear a queue
 
 ```yaml
@@ -127,6 +149,7 @@ Each queue creates a sensor: `sensor.message_queue_{queue_name}`
 | Attribute | Description |
 |-----------|-------------|
 | `expires_at` | ISO timestamp when current message expires |
+| `message_id` | ID of the current message, if one was given |
 | `queue_position` | Position of current message (always 1) |
 | `queue_length` | Total messages in the queue |
 
@@ -134,9 +157,10 @@ Each queue creates a sensor: `sensor.message_queue_{queue_name}`
 
 | Service | Required Params | Optional Params |
 |---------|----------------|-----------------|
-| `push_message` | `queue`, `message` | `show_seconds`, `show_until` |
-| `push_message_to_multiple` | `queues`, `message` | `show_seconds`, `show_until` |
-| `push_message_to_all` | `message` | `show_seconds`, `show_until` |
+| `push_message` | `queue`, `message` | `show_seconds`, `show_until`, `message_id` |
+| `push_message_to_multiple` | `queues`, `message` | `show_seconds`, `show_until`, `message_id` |
+| `push_message_to_all` | `message` | `show_seconds`, `show_until`, `message_id` |
+| `remove_message` | `message_id` | `queue` |
 | `clear_queue` | `queue` | |
 | `get_queue_status` | `queue` | |
 

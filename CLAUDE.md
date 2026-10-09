@@ -21,7 +21,7 @@ No build system, package manager, or test framework. The integration is pure Pyt
 ### Verifying Changes
 
 - Check HA logs for: `Message Queue Manager ready (rotation: Xs, default show: Xs)`
-- Developer Tools > Services should list all 5 `message_queue.*` services
+- Developer Tools > Services should list all 6 `message_queue.*` services
 - Developer Tools > States should show `sensor.message_queue_{name}` entities
 - "Messages" sidebar item should load the send message form
 
@@ -57,7 +57,7 @@ Panel → reads hass.states for queue sensors → calls hass.callService() for a
 
 **`QueueManager`** (`queue_manager.py`) — manages all queue state:
 - `self.queues: dict[str, deque]` mapping queue names to message deques
-- Each message: `{"text": str, "expires_at": datetime}`
+- Each message: `{"text": str, "expires_at": datetime, "message_id": str | None}`
 - Persistence via `homeassistant.helpers.storage.Store`
 - Rotation via `homeassistant.helpers.event.async_track_time_interval`
 - Sensor updates via `homeassistant.helpers.dispatcher.async_dispatcher_send`
@@ -65,15 +65,16 @@ Panel → reads hass.states for queue sensors → calls hass.callService() for a
 **`MessageQueueSensor`** (`sensor.py`) — one per queue:
 - `unique_id`: `message_queue_{queue_name}`
 - State: current message text
-- Attributes: `expires_at`, `queue_position`, `queue_length`
+- Attributes: `expires_at`, `message_id`, `queue_position`, `queue_length`
 
 ### Services
 
 | Service | Key params |
 |---------|-----------|
-| `message_queue.push_message` | `queue`, `message`, `show_seconds` or `show_until` |
-| `message_queue.push_message_to_multiple` | `queues` (list), `message`, `show_seconds` or `show_until` |
-| `message_queue.push_message_to_all` | `message`, `show_seconds` or `show_until` |
+| `message_queue.push_message` | `queue`, `message`, `show_seconds` or `show_until`, optional `message_id` |
+| `message_queue.push_message_to_multiple` | `queues` (list), `message`, `show_seconds` or `show_until`, optional `message_id` |
+| `message_queue.push_message_to_all` | `message`, `show_seconds` or `show_until`, optional `message_id` |
+| `message_queue.remove_message` | `message_id`, optional `queue` (blank = all queues) |
 | `message_queue.clear_queue` | `queue` |
 | `message_queue.get_queue_status` | `queue` (fires `message_queue_status` event) |
 

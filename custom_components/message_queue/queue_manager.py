@@ -18,6 +18,13 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _to_naive_local(value: datetime) -> datetime:
+    """Convert a timezone-aware datetime to naive local time, as used for all comparisons."""
+    if value.tzinfo is None:
+        return value
+    return value.astimezone().replace(tzinfo=None)
+
+
 class QueueManager:
     """Manages message queues with expiration, rotation, and persistence."""
 
@@ -63,6 +70,21 @@ class QueueManager:
         """Remove a queue entirely."""
         self.queues.pop(queue_name, None)
 
+    def _remove_by_id(self, queue_name: str, message_id: str | None) -> bool:
+        """Remove the message with this id from a queue. Return True if one was removed."""
+        if message_id is None:
+            return False
+        queue = self.queues[queue_name]
+        # Linear search is fine unless queue lengths are crazy.
+        for i, msg in enumerate(queue):
+            if msg.get("message_id") == message_id:
+                del queue[i]
+                _LOGGER.debug(
+                    "Removed message with message id '%s' from '%s'", message_id, queue_name
+                )
+                return True
+        return False
+
     async def async_push_message(
         self,
         queue: str,
@@ -76,23 +98,12 @@ class QueueManager:
             _LOGGER.error("Queue '%s' does not exist", queue)
             return
 
-        # Find and remove existing message with this id, if any exist.
-        # Linear search is probably not great... but unless queue lengths are crazy
-        # this should be fine.
-        if message_id is not None:
-            for i in range(len(self.queues[queue])):
-                if self.queues[queue][i].get("message_id") == message_id:
-                    del self.queues[queue][i]
-                    _LOGGER.debug(
-                        "Removed previous message with message id '%s' from '%s'", message_id, queue
-                    )
-                    break
-
         expires_at = self._calculate_expiration(show_seconds, show_until)
         if expires_at is None:
-            return        
+            return
 
-        self.queues[queue].append({"text": message, "expires_at": expires_at, "message_id": message_id,})
+        self._remove_by_id(queue, message_id)
+        self.queues[queue].append({"text": message, "expires_at": expires_at, "message_id": message_id})
         _LOGGER.debug(
             "Pushed to '%s': '%s' (expires %s)", queue, message, expires_at.isoformat()
         )
@@ -117,18 +128,8 @@ class QueueManager:
             if queue_name not in self.queues:
                 _LOGGER.error("Queue '%s' does not exist, skipping", queue_name)
                 continue
-            # Find and remove existing message with this id, if any exist.
-            # Linear search is probably not great... but unless queue lengths are crazy
-            # this should be fine.
-            if message_id is not None:
-                for i in range(len(self.queues[queue_name])):
-                    if self.queues[queue_name][i].get("message_id") == message_id:
-                        del self.queues[queue_name][i]
-                        _LOGGER.debug(
-                            "Removed previous message with message id '%s' from '%s'", message_id, queue_name
-                        )
-                        break
-            self.queues[queue_name].append({"text": message, "expires_at": expires_at, "message_id": message_id,})
+            self._remove_by_id(queue_name, message_id)
+            self.queues[queue_name].append({"text": message, "expires_at": expires_at, "message_id": message_id})
             async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue_name)
             pushed.append(queue_name)
 
@@ -153,62 +154,34 @@ class QueueManager:
             return
 
         for queue_name, queue in self.queues.items():
-            # Find and remove existing message with this id, if any exist.
-            # Linear search is probably not great... but unless queue lengths are crazy
-            # this should be fine.
-            if message_id is not None:
-                for i in range(len(queue)):
-                    if queue[i].get("message_id") == message_id:
-                        del queue[i]
-                        _LOGGER.debug(
-                            "Removed previous message with message id '%s' from '%s'", message_id, queue_name
-                        )
-                        break
-            queue.append({"text": message, "expires_at": expires_at, "message_id": message_id,})
+            self._remove_by_id(queue_name, message_id)
+            queue.append({"text": message, "expires_at": expires_at, "message_id": message_id})
             async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue_name)
 
         _LOGGER.debug("Pushed message to all %d queues", len(self.queues))
         await self._async_save_state()
 
     async def async_remove_message(
-        self,        
+        self,
         message_id: str,
         queue: str | None = None,
     ) -> None:
         """Remove a message by ID from a single queue or all queues."""
+        # A blank queue means all queues.
+        if queue and queue not in self.queues:
+            _LOGGER.error("Queue '%s' does not exist", queue)
+            return
+
         found = False
-        if queue is not None:
-            if queue not in self.queues:
-                _LOGGER.error("Queue '%s' does not exist", queue)
-                return
-            for i in range(len(self.queues[queue])):
-                if self.queues[queue][i].get("message_id") == message_id:
-                    del self.queues[queue][i]
-                    _LOGGER.debug(
-                        "Removed previous message with message id '%s' from '%s'", message_id, queue
-                    )
-                    async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue)
-                    found = True
-                    break
+        for queue_name in [queue] if queue else list(self.queues):
+            if self._remove_by_id(queue_name, message_id):
+                async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue_name)
+                found = True
+
+        if found:
+            await self._async_save_state()
         else:
-            for queue_name in self.queues.keys():
-                # Find and remove existing message with this id, if any exist.
-                # Linear search is probably not great... but unless queue lengths are crazy
-                # this should be fine.            
-                for i in range(len(self.queues[queue_name])):
-                    if self.queues[queue_name][i].get("message_id") == message_id:
-                        del self.queues[queue_name][i]
-                        _LOGGER.debug(
-                            "Removed previous message with message id '%s' from '%s'", message_id, queue_name
-                        )
-                        async_dispatcher_send(self.hass, SIGNAL_QUEUE_UPDATED, queue_name)
-                        found = True
-                        break                            
-        if not found:
-            _LOGGER.debug(
-                "Could not find a message with message id '%s'", message_id
-            )
-        await self._async_save_state()       
+            _LOGGER.debug("Could not find a message with message id '%s'", message_id)
 
     async def async_clear_queue(self, queue: str) -> None:
         """Clear all messages from a queue."""
@@ -233,6 +206,7 @@ class QueueManager:
             messages.append({
                 "index": i,
                 "text": msg["text"],
+                "message_id": msg.get("message_id"),
                 "expires_at": msg["expires_at"].isoformat(),
                 "expired": now > msg["expires_at"],
             })
@@ -261,7 +235,7 @@ class QueueManager:
         """Calculate expiration datetime from show_seconds or show_until."""
         if show_until:
             try:
-                return datetime.fromisoformat(show_until)
+                return _to_naive_local(datetime.fromisoformat(show_until))
             except ValueError:
                 _LOGGER.error(
                     "Invalid show_until format: %s. Use ISO format (e.g., 2024-03-03T18:30:00)",
@@ -322,7 +296,7 @@ class QueueManager:
             for msg in messages:
                 self.queues[queue_name].append({
                     "text": msg["text"],
-                    "expires_at": datetime.fromisoformat(msg["expires_at"]),
+                    "expires_at": _to_naive_local(datetime.fromisoformat(msg["expires_at"])),
                     "message_id": msg.get("message_id"),
                 })
 

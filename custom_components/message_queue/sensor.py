@@ -65,12 +65,14 @@ class MessageQueueSensor(SensorEntity):
         if msg is None:
             return {
                 "expires_at": None,
+                "message_id": None,
                 "queue_position": 0,
                 "queue_length": 0,
             }
 
         return {
             "expires_at": msg["expires_at"].isoformat(),
+            "message_id": msg.get("message_id"),
             "queue_position": 1,
             "queue_length": length,
         }

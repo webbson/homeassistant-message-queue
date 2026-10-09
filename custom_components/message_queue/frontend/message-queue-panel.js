@@ -98,7 +98,7 @@ class MessageQueuePanel extends HTMLElement {
       data.show_seconds = parseInt(this.querySelector("#showSeconds").value);
     } else {
       const dt = this.querySelector("#showUntil").value;
-      if (dt) data.show_until = new Date(dt).toISOString().slice(0, 19);
+      if (dt) data.show_until = new Date(dt).toISOString();
     }
 
     let service;
