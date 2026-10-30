@@ -1,6 +1,8 @@
 class MessageQueuePanel extends HTMLElement {
   constructor() {
     super();
+    // Keep panel styles (including :host) scoped to this component.
+    this.attachShadow({ mode: "open" });
     this._hass = null;
     this._initialized = false;
   }
@@ -34,9 +36,9 @@ class MessageQueuePanel extends HTMLElement {
 
   _updateQueueList() {
     const queues = this._getQueues();
-    const select = this.querySelector("#queueSelect");
-    const checkboxes = this.querySelector("#queueCheckboxes");
-    const statusList = this.querySelector("#queueStatus");
+    const select = this.shadowRoot.querySelector("#queueSelect");
+    const checkboxes = this.shadowRoot.querySelector("#queueCheckboxes");
+    const statusList = this.shadowRoot.querySelector("#queueStatus");
 
     if (!select) return;
 
@@ -84,31 +86,31 @@ class MessageQueuePanel extends HTMLElement {
 
   async _sendMessage(e) {
     e.preventDefault();
-    const form = this.querySelector("#messageForm");
-    const status = this.querySelector("#statusMsg");
-    const message = this.querySelector("#message").value;
-    const sendTo = this.querySelector('input[name="sendTo"]:checked').value;
-    const expType = this.querySelector(
+    const form = this.shadowRoot.querySelector("#messageForm");
+    const status = this.shadowRoot.querySelector("#statusMsg");
+    const message = this.shadowRoot.querySelector("#message").value;
+    const sendTo = this.shadowRoot.querySelector('input[name="sendTo"]:checked').value;
+    const expType = this.shadowRoot.querySelector(
       'input[name="expirationType"]:checked'
     ).value;
 
     const data = { message };
 
     if (expType === "seconds") {
-      data.show_seconds = parseInt(this.querySelector("#showSeconds").value);
+      data.show_seconds = parseInt(this.shadowRoot.querySelector("#showSeconds").value);
     } else {
-      const dt = this.querySelector("#showUntil").value;
+      const dt = this.shadowRoot.querySelector("#showUntil").value;
       if (dt) data.show_until = new Date(dt).toISOString();
     }
 
     let service;
     if (sendTo === "single") {
       service = "push_message";
-      data.queue = this.querySelector("#queueSelect").value;
+      data.queue = this.shadowRoot.querySelector("#queueSelect").value;
     } else if (sendTo === "multiple") {
       service = "push_message_to_multiple";
       data.queues = Array.from(
-        this.querySelectorAll('input[name="queue_cb"]:checked')
+        this.shadowRoot.querySelectorAll('input[name="queue_cb"]:checked')
       ).map((cb) => cb.value);
       if (data.queues.length === 0) {
         this._showStatus("Select at least one queue.", "error");
@@ -121,14 +123,14 @@ class MessageQueuePanel extends HTMLElement {
     try {
       await this._hass.callService("message_queue", service, data);
       this._showStatus("Message sent.", "success");
-      this.querySelector("#message").value = "";
+      this.shadowRoot.querySelector("#message").value = "";
     } catch (err) {
       this._showStatus("Error: " + err.message, "error");
     }
   }
 
   async _clearQueue() {
-    const queue = this.querySelector("#queueSelect").value;
+    const queue = this.shadowRoot.querySelector("#queueSelect").value;
     if (!queue) return;
     try {
       await this._hass.callService("message_queue", "clear_queue", { queue });
@@ -139,7 +141,7 @@ class MessageQueuePanel extends HTMLElement {
   }
 
   _showStatus(msg, type) {
-    const el = this.querySelector("#statusMsg");
+    const el = this.shadowRoot.querySelector("#statusMsg");
     el.textContent = msg;
     el.className = "status-msg " + type;
     if (type === "success") {
@@ -150,23 +152,23 @@ class MessageQueuePanel extends HTMLElement {
   }
 
   _updateVisibility() {
-    const sendTo = this.querySelector('input[name="sendTo"]:checked').value;
-    this.querySelector("#singleGroup").style.display =
+    const sendTo = this.shadowRoot.querySelector('input[name="sendTo"]:checked').value;
+    this.shadowRoot.querySelector("#singleGroup").style.display =
       sendTo === "single" ? "" : "none";
-    this.querySelector("#multipleGroup").style.display =
+    this.shadowRoot.querySelector("#multipleGroup").style.display =
       sendTo === "multiple" ? "" : "none";
 
-    const expType = this.querySelector(
+    const expType = this.shadowRoot.querySelector(
       'input[name="expirationType"]:checked'
     ).value;
-    this.querySelector("#secondsField").style.display =
+    this.shadowRoot.querySelector("#secondsField").style.display =
       expType === "seconds" ? "" : "none";
-    this.querySelector("#untilField").style.display =
+    this.shadowRoot.querySelector("#untilField").style.display =
       expType === "until" ? "" : "none";
   }
 
   _render() {
-    this.innerHTML = `
+    this.shadowRoot.innerHTML = `
       <style>
         :host {
           display: block;
@@ -308,16 +310,16 @@ class MessageQueuePanel extends HTMLElement {
     `;
 
     // Bind events
-    this.querySelector("#messageForm").addEventListener("submit", (e) =>
+    this.shadowRoot.querySelector("#messageForm").addEventListener("submit", (e) =>
       this._sendMessage(e)
     );
-    this.querySelector("#clearBtn").addEventListener("click", () =>
+    this.shadowRoot.querySelector("#clearBtn").addEventListener("click", () =>
       this._clearQueue()
     );
-    this.querySelectorAll('input[name="sendTo"]').forEach((r) =>
+    this.shadowRoot.querySelectorAll('input[name="sendTo"]').forEach((r) =>
       r.addEventListener("change", () => this._updateVisibility())
     );
-    this.querySelectorAll('input[name="expirationType"]').forEach((r) =>
+    this.shadowRoot.querySelectorAll('input[name="expirationType"]').forEach((r) =>
       r.addEventListener("change", () => this._updateVisibility())
     );
 
