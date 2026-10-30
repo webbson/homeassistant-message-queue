@@ -139,6 +139,55 @@ data:
 
 Status is logged and fired as a `message_queue_status` event.
 
+## Events
+
+### `message_queue_status`
+
+This event is fired by the [`message_queue.get_queue_status`] action.
+It carries the following data:
+
+**Event data:**
+| Field | Description |
+|-------|-------------|
+| `queue_name` | Name of the queue the status was requested for |
+| `length` | Total number of messages in the queue |
+| `messages` | List of messages in the queue |
+
+**Entries in `messages`:**
+| Field | Description |
+|-------|-------------|
+| `index` | Position in the queue, starting at 0 (the current message) |
+| `text` | Message text |
+| `message_id` | ID of the message, or `null` if none was given |
+| `expires_at` | ISO timestamp when the message expires (local time, without timezone) |
+| `expired` | `true` if the message has expired but has not been removed yet |
+
+The remaining fields in the example below (`origin`, `time_fired`, `context`) are added by [Home Assistant to every event](https://www.home-assistant.io/docs/configuration/events/#fields-in-every-event).
+
+Example:
+
+```yaml
+event_type: message_queue_status
+data:
+  queue_name: living_room_screen
+  length: 1
+  messages:
+    - index: 0
+      text: Washing machine: 10 minutes left
+      message_id: washing_machine
+      expires_at: '2026-10-30T18:27:17.545576'
+      expired: false
+origin: LOCAL
+time_fired: '2026-10-30T17:21:03.860575+00:00'
+context:
+  id: 01M77X8KVMZNJ5TBGMDZ8P84D5
+  parent_id: null
+  user_id: null
+
+```
+
+[`message_queue.get_queue_status`]: #get-queue-status
+
 ## Sensor Entities
 
 Each queue creates a sensor: `sensor.message_queue_{queue_name}`
